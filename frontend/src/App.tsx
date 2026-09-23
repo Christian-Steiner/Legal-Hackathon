@@ -44,7 +44,7 @@ export default function App() {
         <nav>
           {s.role === "lawyer" ? (
             <>
-              <NavLink to="/lawyer">Pipeline</NavLink>
+              <NavLink to="/lawyer" end>Pipeline</NavLink>
               <NavLink to="/lawyer/review">Review queue</NavLink>
               <NavLink to="/lawyer/updates">Updates</NavLink>
               <NavLink to="/lawyer/audit">Audit log</NavLink>
@@ -55,7 +55,7 @@ export default function App() {
               <NavLink to={s.companyId ? "/client/profile" : "/onboarding"}>Company profile</NavLink>
             </>
           )}
-          <NavLink to="/limitations">Limitations</NavLink>
+          {/* <NavLink to="/limitations">Limitations</NavLink> */}
         </nav>
         <div className="role">
           <label className="small muted">Viewing as</label>
@@ -83,13 +83,13 @@ export default function App() {
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/client/profile" element={<Onboarding edit />} />
           <Route path="/client/inbox" element={<Inbox />} />
-          <Route path="/limitations" element={<Limitations />} />
+          {/* <Route path="/limitations" element={<Limitations />} /> */}
           <Route path="*" element={<p>Not found</p>} />
         </Routes>
       </main>
       <footer className="muted small">
-        Hackathon prototype · Not legal advice · Every client alert is approved by a LEXR lawyer ·{" "}
-        <NavLink to="/limitations">What this tool does not cover</NavLink>
+        Hackathon prototype · Not legal advice · Every client alert is approved by a LEXR lawyer
+        {/* · <NavLink to="/limitations">What this tool does not cover</NavLink> */}
       </footer>
     </div>
   );
