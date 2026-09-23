@@ -106,15 +106,69 @@ def classify_all(db: Session, force: bool = False) -> schemas.PipelineResult:
             res.skipped += 1
             continue
         try:
-            u.classification = ai_classify.classify(_update_dict(u))
+            _classify_one(db, u)
         except LLMError as e:
             res.errors.append(f"{u.id}: {e}")
             continue
-        audit.log(db, actor=f"model:{u.classification['model_version']}", action="classify", object_type="update",
-                  object_id=u.id, details=u.classification)
         res.created += 1
         db.commit()
     return res
+
+
+def _classify_one(db: Session, u: RegulatoryUpdate) -> None:
+    """Raises LLMError."""
+    u.classification = ai_classify.classify(_update_dict(u))
+    audit.log(db, actor=f"model:{u.classification['model_version']}", action="classify", object_type="update",
+              object_id=u.id, details=u.classification)
+
+
+def _match_one(db: Session, u: RegulatoryUpdate, ud: dict, c: Company, existing: Match | None) -> Match | None:
+    """(Re-)match one update to one company. Returns None if skipped. Raises LLMError."""
+    if existing:
+        old_draft = db.scalar(select(Draft).where(Draft.match_id == existing.id))
+        if old_draft and old_draft.status == "approved":
+            return None  # never silently change something a lawyer already approved
+    out = ai_matching.match(_company_dict(c), ud)
+    if existing:
+        old_draft = db.scalar(select(Draft).where(Draft.match_id == existing.id))
+        if old_draft:
+            db.delete(old_draft)
+    m = existing or Match(update_id=u.id, company_id=c.id)
+    for k, v in out.items():
+        setattr(m, k, v)
+    db.add(m)
+    db.flush()
+    audit.log(db, actor=f"model:{out['model_version']}", action="match", object_type="match", object_id=m.id,
+              details={"update_id": u.id, "company_id": c.id, **out})
+    return m
+
+
+def process_update(db: Session, update_id: str, company_ids: list[int] | None = None) -> dict:
+    """Run ONE update through classify -> match -> draft with the current LLM provider, re-doing
+    earlier results (approved drafts are left untouched). For testing a provider on a single
+    incoming change without re-running the whole pipeline. Raises LLMError / KeyError."""
+    u = db.get(RegulatoryUpdate, update_id)
+    if u is None:
+        raise KeyError(update_id)
+    _classify_one(db, u)
+    db.commit()
+    ud = _update_dict(u)
+    q = select(Company)
+    if company_ids:
+        q = q.where(Company.id.in_(company_ids))
+    results = []
+    for c in db.scalars(q):
+        existing = db.scalar(select(Match).where(Match.update_id == u.id, Match.company_id == c.id))
+        m = _match_one(db, u, ud, c, existing)
+        if m is None:
+            results.append({"company": c.name, "skipped": "draft already approved"})
+            continue
+        d = draft_for_match(db, m) if m.matched else None
+        db.commit()
+        results.append({"company": c.name, "matched": m.matched, "score": m.relevance_score, "reason": m.llm_reason,
+                        "draft_id": d.id if d else None})
+    return {"update_id": u.id, "title": u.title, "model": u.classification["model_version"],
+            "classification": u.classification, "companies": results}
 
 
 def match_all(db: Session, force: bool = False) -> schemas.PipelineResult:
@@ -128,24 +182,13 @@ def match_all(db: Session, force: bool = False) -> schemas.PipelineResult:
                 res.skipped += 1
                 continue
             try:
-                out = ai_matching.match(_company_dict(c), ud)
+                m = _match_one(db, u, ud, c, existing)
             except LLMError as e:
                 res.errors.append(f"{u.id}/{c.id}: {e}")
                 continue
-            if existing:
-                old_draft = db.scalar(select(Draft).where(Draft.match_id == existing.id))
-                if old_draft and old_draft.status == "approved":
-                    res.skipped += 1  # never silently change something a lawyer already approved
-                    continue
-                if old_draft:
-                    db.delete(old_draft)
-            m = existing or Match(update_id=u.id, company_id=c.id)
-            for k, v in out.items():
-                setattr(m, k, v)
-            db.add(m)
-            db.flush()
-            audit.log(db, actor=f"model:{out['model_version']}", action="match", object_type="match", object_id=m.id,
-                      details={"update_id": u.id, "company_id": c.id, **out})
+            if m is None:
+                res.skipped += 1
+                continue
             res.created += 1
         db.commit()
     res.info = {"matched": db.query(Match).filter(Match.matched.is_(True)).count()}

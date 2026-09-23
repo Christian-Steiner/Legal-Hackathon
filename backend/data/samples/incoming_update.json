@@ -1,0 +1,17 @@
+{
+  "source": "manual",
+  "external_id": "test-001",
+  "update_type": "simulated",
+  "is_simulated": true,
+  "jurisdiction": "CH",
+  "title": "Änderung der Datenschutzverordnung: Meldepflicht bei Datensicherheitsverletzungen und KI-gestützte Profilierung",
+  "publication_date": "2026-09-23",
+  "entry_into_force_date": "2027-01-01",
+  "source_language": "DE",
+  "source_text": "Test update for trying the pipeline (not an official publication).",
+  "source_articles": [
+    {"ref": "Art. 15", "text": "Art. 15 Meldung von Verletzungen der Datensicherheit. 1 Der Verantwortliche meldet dem EDÖB eine Verletzung der Datensicherheit innert 72 Stunden, nachdem sie ihm bekannt geworden ist. 2 Die Meldung enthält die Art der Verletzung, die betroffenen Kategorien von Personendaten und die ergriffenen Massnahmen."},
+    {"ref": "Art. 15a", "text": "Art. 15a Profiling mit künstlicher Intelligenz. 1 Wer Profiling mit hohem Risiko mittels Systemen der künstlichen Intelligenz durchführt, dokumentiert die verwendeten Datenkategorien und die menschliche Aufsicht. 2 Bei Personen unter 16 Jahren ist Profiling zu Marketingzwecken untersagt."}
+  ],
+  "source_version": "manual-test-v1"
+}

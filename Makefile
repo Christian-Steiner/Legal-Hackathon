@@ -1,5 +1,5 @@
 # Regulatory Change Monitor - local dev.  `make dev` = install what's missing, seed if needed, start everything.
-.PHONY: dev backend frontend setup reset test eval fedlex-cache help
+.PHONY: dev backend frontend setup reset test eval fedlex-cache llm-check try help
 
 BACKEND_PORT  ?= 8000
 FRONTEND_PORT ?= 5173
@@ -10,6 +10,9 @@ help:
 	@echo "make backend   API only on :$(BACKEND_PORT)      make frontend   UI only on :$(FRONTEND_PORT)"
 	@echo "make test      backend smoke test + frontend type-check/build"
 	@echo "make eval      routing agreement vs jury columns"
+	@echo "make llm-check test the LLM provider/key in backend/.env (1 tiny call)"
+	@echo "make try ID=fedlex:oc/2026/322   run ONE update through classify/match/draft with the LLM"
+	@echo "make try FILE=data/samples/incoming_update.json   same, for a new incoming update"
 	@echo "make fedlex-cache   refresh data/fedlex_cache.json from the live endpoint"
 
 dev: setup backend/data/app.db
@@ -57,3 +60,9 @@ eval: setup
 
 fedlex-cache: setup
 	cd backend && uv run python -m scripts.fetch_fedlex_cache
+
+llm-check: setup
+	cd backend && uv run python -m scripts.llm_check
+
+try: setup backend/data/app.db
+	cd backend && uv run python -m scripts.process_one $(if $(FILE),--file $(FILE),--id $(or $(ID),dataset:R005))
