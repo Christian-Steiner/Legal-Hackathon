@@ -51,8 +51,8 @@ def process_update(update_id: str, db: Session = Depends(get_db), _: str = Depen
 
 
 @router.post("/pipeline/run-all", response_model=list[schemas.PipelineResult])
-def run_all(db: Session = Depends(get_db), _: str = Depends(require_lawyer)):
-    return pipeline.run_all(db)
+def run_all(live: bool = False, db: Session = Depends(get_db), _: str = Depends(require_lawyer)):
+    return pipeline.run_all(db, live=live)
 
 
 @router.get("/audit", response_model=list[schemas.AuditLogOut])

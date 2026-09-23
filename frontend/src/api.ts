@@ -56,7 +56,7 @@ export const api = {
 
   runStep: (step: "ingest/fedlex" | "ingest/dataset" | "classify" | "match" | "draft", p: { live?: boolean; force?: boolean } = {}) =>
     req<PipelineResult>("POST", `/pipeline/${step}${qs(p)}`),
-  runAll: () => req<PipelineResult[]>("POST", "/pipeline/run-all"),
+  runAll: (live: boolean = false) => req<PipelineResult[]>("POST", `/pipeline/run-all${qs({ live })}`),
   audit: (p: { object_type?: string; object_id?: string; limit?: number } = {}) =>
     req<AuditLogEntry[]>("GET", `/audit${qs(p)}`),
 };

@@ -295,5 +295,5 @@ def draft_all(db: Session) -> schemas.PipelineResult:
     return res
 
 
-def run_all(db: Session) -> list[schemas.PipelineResult]:
-    return [ingest_fedlex(db), ingest_dataset(db), classify_all(db), match_all(db), draft_all(db)]
+def run_all(db: Session, live: bool = False) -> list[schemas.PipelineResult]:
+    return [ingest_fedlex(db, live=live), ingest_dataset(db), classify_all(db), match_all(db), draft_all(db)]
