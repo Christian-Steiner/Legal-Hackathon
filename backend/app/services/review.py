@@ -50,7 +50,7 @@ def edit(db: Session, draft_id: int, patch: schemas.DraftEdit, lawyer: str) -> D
         setattr(d, k, v)
     d.edited_by_lawyer = True
     d.version += 1
-    snapshot = {k: getattr(d, k) for k in ("summary", "affected_departments", "next_steps", "urgency", "citations")}
+    snapshot = {k: getattr(d, k) for k in ("title", "summary", "affected_departments", "next_steps", "urgency", "citations")}
     d.revision_history = [*d.revision_history, {"version": d.version, "at": _now(), "by": lawyer, "change": "edited",
                                                 "snapshot": snapshot}]
     audit.log(db, actor=lawyer, action="draft.edited", object_type="draft", object_id=d.id,
@@ -123,27 +123,73 @@ def _create_alert(db: Session, d: Draft) -> Alert:
     return alert
 
 
+def _language(d: Draft) -> str:
+    """Language the client sees: the one the draft was written in (older drafts: the client's preference)."""
+    lang = d.language or d.company.preferred_language
+    return lang if lang in schemas.DISCLAIMERS else "EN"
+
+
 def alert_out(a: Alert) -> schemas.AlertOut:
     d = a.draft
+    lang = _language(d)
     return schemas.AlertOut(
         id=a.id, draft_id=a.draft_id, company_id=a.company_id, departments=a.departments, delivered_at=a.delivered_at,
-        reviewed_by=a.reviewed_by, read_at=a.read_at, title=d.update.title, summary=d.summary, next_steps=d.next_steps,
-        urgency=d.urgency, citations=d.citations, source_url=d.update.source_url, is_simulated=d.update.is_simulated,
+        reviewed_by=a.reviewed_by, read_at=a.read_at, title=d.title or d.update.title, summary=d.summary,
+        next_steps=d.next_steps, urgency=d.urgency, citations=d.citations, source_url=d.update.source_url,
+        is_simulated=d.update.is_simulated, language=lang, disclaimer=schemas.DISCLAIMERS[lang],
     )
 
 
-def email_preview(a: Alert) -> schemas.EmailPreview:
+# Fixed email wording per client language, so the whole notification is in one language.
+EMAIL_TEXT = {
+    "EN": {"subject": "LEXR regulatory alert", "for": "For", "urgency": "Urgency",
+           "urgencies": {"high": "high", "medium": "medium", "low": "low"},
+           "why": "Why this concerns you", "steps": "Suggested next steps", "by": "by", "sources": "Sources",
+           "reviewed": "Reviewed by LEXR ({who}) on {date}."},
+    "DE": {"subject": "LEXR Regulierungs-Update", "for": "Für", "urgency": "Dringlichkeit",
+           "urgencies": {"high": "hoch", "medium": "mittel", "low": "niedrig"},
+           "why": "Warum Sie das betrifft", "steps": "Empfohlene nächste Schritte", "by": "bis", "sources": "Quellen",
+           "reviewed": "Geprüft von LEXR ({who}) am {date}."},
+    "FR": {"subject": "Alerte réglementaire LEXR", "for": "Pour", "urgency": "Urgence",
+           "urgencies": {"high": "élevée", "medium": "moyenne", "low": "faible"},
+           "why": "Pourquoi cela vous concerne", "steps": "Prochaines étapes suggérées", "by": "d'ici le",
+           "sources": "Sources", "reviewed": "Vérifié par LEXR ({who}) le {date}."},
+    "IT": {"subject": "Avviso normativo LEXR", "for": "Per", "urgency": "Urgenza",
+           "urgencies": {"high": "alta", "medium": "media", "low": "bassa"},
+           "why": "Perché vi riguarda", "steps": "Prossimi passi suggeriti", "by": "entro il", "sources": "Fonti",
+           "reviewed": "Verificato da LEXR ({who}) il {date}."},
+}
+
+
+def email_preview(a: Alert, department_id: int | None = None) -> schemas.EmailPreview:
+    """The alert email in the draft's language. With department_id: only that department's part,
+    sent only to that department (each department gets what concerns it)."""
     d = a.draft
+    lang = _language(d)
+    t = EMAIL_TEXT[lang]
     emails = {dep.id: dep.contact_email for dep in d.company.departments}
-    to = [emails[x["department_id"]] for x in a.departments if x.get("department_id") in emails]
-    steps = "\n".join(f"  - {s['action']}" + (f" ({s['department']})" if s.get("department") else "")
-                      + (f", by {s['due']}" if s.get("due") else "") for s in d.next_steps)
+    deps = [x for x in a.departments if department_id is None or x.get("department_id") == department_id]
+    if not deps:
+        raise HTTPException(404, "This alert was not routed to that department.")
+    names, all_names = {x["name"] for x in deps}, {x["name"] for x in a.departments}
+    # Steps for this department, plus steps not assigned to any routed department (so none get lost).
+    steps_for = [s for s in d.next_steps
+                 if department_id is None or s.get("department") in names or s.get("department") not in all_names]
+    to = [emails[x["department_id"]] for x in deps if x.get("department_id") in emails]
+    title = d.title or d.update.title
+    why = "\n".join(f"  - {x['name']}: {x['why']}" for x in deps if x.get("why"))
+    steps = "\n".join(f"  - {s['action']}" + (f" ({s['department']})" if s.get("department") and department_id is None else "")
+                      + (f", {t['by']} {s['due']}" if s.get("due") else "") for s in steps_for)
     cites = "\n".join(f"  [{i + 1}] {c.get('article') or ''} {c.get('eli') or c.get('source_url') or ''}"
                       for i, c in enumerate(d.citations))
-    body = (f"{d.update.title}\nUrgency: {d.urgency}\n\n{d.summary}\n\nSuggested next steps:\n{steps}\n\n"
-            f"Sources:\n{cites}\n\nReviewed by LEXR ({a.reviewed_by}) on {a.delivered_at:%d.%m.%Y}.\n\n"
-            f"{schemas.DISCLAIMER}")
-    return schemas.EmailPreview(to=to, subject=f"[LEXR Regulatory Alert] {d.update.title[:90]}", body_text=body)
+    head = f"{t['for']}: {deps[0]['name']}\n" if department_id is not None else ""
+    body = (f"{head}{title}\n{t['urgency']}: {t['urgencies'].get(d.urgency, d.urgency)}\n\n{d.summary}\n\n"
+            + (f"{t['why']}:\n{why}\n\n" if why else "")
+            + (f"{t['steps']}:\n{steps}\n\n" if steps else "")
+            + f"{t['sources']}:\n{cites}\n\n"
+            + t["reviewed"].format(who=a.reviewed_by.removeprefix("lawyer:"), date=f"{a.delivered_at:%d.%m.%Y}")
+            + f"\n\n{schemas.DISCLAIMERS[lang]}")
+    return schemas.EmailPreview(to=to, subject=f"[{t['subject']}] {title[:90]}", body_text=body)
 
 
 def _now() -> str:

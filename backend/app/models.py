@@ -110,6 +110,8 @@ class Draft(Base):
     revision_history: Mapped[list] = mapped_column(JSON, default=list)
     model_version: Mapped[str] = mapped_column(String(100))
     prompt_version: Mapped[str] = mapped_column(String(50))
+    title: Mapped[str | None] = mapped_column(Text, nullable=True)  # client-facing, in the draft's language
+    language: Mapped[str | None] = mapped_column(String(2), nullable=True)  # DE | FR | IT | EN
     edited_by_lawyer: Mapped[bool] = mapped_column(Boolean, default=False)
     reviewed_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

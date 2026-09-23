@@ -66,8 +66,8 @@ def request_revision(draft_id: int, body: schemas.ReviewDecision, db: Session = 
 
 
 @router.get("/alerts/{alert_id}/email-preview", response_model=schemas.EmailPreview)
-def email_preview(alert_id: int, db: Session = Depends(get_db)):
+def email_preview(alert_id: int, department_id: int | None = None, db: Session = Depends(get_db)):
     a = db.get(Alert, alert_id)
     if not a:
         raise HTTPException(404, "Alert not found")
-    return review.email_preview(a)
+    return review.email_preview(a, department_id)

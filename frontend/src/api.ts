@@ -51,7 +51,8 @@ export const api = {
   approve: (id: number, comment = "") => req<Alert>("POST", `/drafts/${id}/approve`, { comment }),
   reject: (id: number, comment: string) => req<Draft>("POST", `/drafts/${id}/reject`, { comment }),
   requestRevision: (id: number, comment: string) => req<Draft>("POST", `/drafts/${id}/request-revision`, { comment }),
-  emailPreview: (alertId: number) => req<EmailPreview>("GET", `/alerts/${alertId}/email-preview`),
+  emailPreview: (alertId: number, departmentId?: number) =>
+    req<EmailPreview>("GET", `/alerts/${alertId}/email-preview${qs({ department_id: departmentId })}`),
 
   runStep: (step: "ingest/fedlex" | "ingest/dataset" | "classify" | "match" | "draft", p: { live?: boolean; force?: boolean } = {}) =>
     req<PipelineResult>("POST", `/pipeline/${step}${qs(p)}`),

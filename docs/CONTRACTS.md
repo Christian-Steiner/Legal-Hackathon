@@ -38,7 +38,9 @@ Live, always-current reference: run the backend and open http://localhost:8000/d
   "citations": [{"claim": "…", "eli": "https://fedlex…/eli/oc/2026/322", "article": "Art. 2", "quote": "…", "source_url": "…"}],
   "status": "pending | approved | rejected | revision_requested",
   "reviewer_comments": [], "revision_history": [{"version": 1, "by": "model:…", "change": "generated", "snapshot": {}}],
-  "model_version": "apertus:swiss-ai/Apertus-v1.5-70B", "prompt_version": "draft-v1",
+  "title": "Client-facing title in the draft language (null before draft-v2 -> use update.title)",
+  "language": "DE | FR | IT | EN (the client's preferred language; every text field is in it)",
+  "model_version": "apertus:swiss-ai/Apertus-v1.5-70B", "prompt_version": "draft-v2",
   "warnings": ["NO_CITATIONS: …"]
 }
 ```
@@ -53,9 +55,12 @@ Live, always-current reference: run the backend and open http://localhost:8000/d
 | GET | `/api/drafts?status=&company_id=` · `/api/drafts/{id}` | review queue / screen |
 | PUT | `/api/drafts/{id}` | lawyer edit |
 | POST | `/api/drafts/{id}/approve` · `/reject` · `/request-revision` (body `{comment}`) | lawyer only |
-| GET | `/api/alerts/{id}/email-preview` | |
+| GET | `/api/alerts/{id}/email-preview?department_id=` | in the alert's language; with `department_id` only that department's part |
 | POST | `/api/pipeline/ingest/fedlex?live=` · `ingest/dataset` · `classify` · `match` · `draft` · `run-all` | lawyer only |
 | GET | `/api/audit?object_type=&object_id=&limit=` | |
 
 Lawyer-only endpoints require headers `X-Role: lawyer` and `X-Actor: <name>` (demo stand-in for auth;
 the frontend role switcher sends them).
+
+**Alert** (`GET /api/companies/{id}/alerts`) also carries `language`; `title` and `disclaimer` are in that language.
+Each department sees only its own `departments[].why` and the `next_steps` whose `department` is its name.

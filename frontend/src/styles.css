@@ -131,3 +131,5 @@ a.button.disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
 .tile-summary { margin: 0; font-size: 0.9rem; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .tile-foot { margin-top: auto; padding-top: 0.4rem; border-top: 1px solid var(--line); }
 .tile-open { color: var(--accent); font-weight: 600; }
+.alert b.block { display: block; margin-top: 0.9rem; }
+.alert b.block + p { margin-top: 0.3rem; }

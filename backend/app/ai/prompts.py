@@ -3,7 +3,7 @@ the version is stored on every Match/Draft and shown to the reviewer."""
 
 CLASSIFY_VERSION = "classify-v2"
 MATCH_VERSION = "match-v1"
-DRAFT_VERSION = "draft-v1"
+DRAFT_VERSION = "draft-v2"
 
 GUARDRAILS = """You assist LEXR, a Swiss law firm. You are NOT giving legal advice. A LEXR lawyer reviews
 everything you write before a client sees it. Rules:
@@ -62,7 +62,7 @@ the source articles list). Statements you cannot cite must not be made."""
 DRAFT_USER = """Client profile:
 {company}
 
-Client departments (use these exact names and ids):
+Client departments (use these exact names and ids; "responsibilities" says what each one does):
 {departments}
 
 Why this update was matched to the client:
@@ -75,9 +75,18 @@ Source articles (original language; cite these refs):
 {articles}
 
 {revision_note}
-Write in {language}. Return JSON:
-{{"summary": "plain-language explanation, max 120 words, of what changes and why it matters to this client",
-  "affected_departments": [{{"department_id": id, "name": name, "why": "one sentence"}}],
-  "next_steps": [{{"action": "concrete step", "department": name or null, "due": "YYYY-MM-DD" or null}}],
+Language: write EVERY text value (title, summary, why, action, claim) in {language}, even if the source is in
+another language. Only "quote" stays verbatim in the source language.
+
+Each department only sees its own "why" and its own next steps, so make them self-contained for that department.
+
+Return JSON:
+{{"title": "short title of the update in {language} (translate the official title; max 15 words)",
+  "summary": "plain-language explanation, max 120 words, of what changes and why it matters to this client",
+  "affected_departments": [{{"department_id": id, "name": name,
+     "why": "2-4 sentences for this department only: which of its responsibilities or processes are affected, what concretely changes for it, and what is still unclear in the source"}}],
+  "next_steps": [{{"action": "one concrete, specific step (what to check or change, in which process or document)",
+     "department": exact department name, "due": "YYYY-MM-DD" or null}}],
   "urgency": "high" | "medium" | "low",
-  "citations": [{{"claim": "statement from the summary", "eli": "ELI URI or null", "article": "article ref", "quote": "short verbatim excerpt from the source"}}]}}"""
+  "citations": [{{"claim": "statement from the summary", "eli": "ELI URI or null", "article": "article ref", "quote": "short verbatim excerpt from the source"}}]}}
+Give 2-4 next steps for EACH affected department. Only use due dates that follow from the source (e.g. entry into force)."""

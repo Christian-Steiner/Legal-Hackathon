@@ -250,16 +250,18 @@ def draft_for_match(db: Session, m: Match, revision_comment: str | None = None, 
         out = ai_drafting.draft(*_draft_inputs(m), revision_comment)
     now = datetime.now(timezone.utc)
     d = db.scalar(select(Draft).where(Draft.match_id == m.id))
-    editable = {k: out[k] for k in ("summary", "affected_departments", "next_steps", "urgency", "citations")}
+    editable = {k: out.get(k) for k in ("title", "summary", "affected_departments", "next_steps", "urgency", "citations")}
     if d is None:
         d = Draft(match_id=m.id, company_id=m.company_id, update_id=m.update_id, version=1, status="pending",
-                  revision_history=[], reviewer_comments=[], model_version=out["model_version"], prompt_version=out["prompt_version"], **editable)
+                  revision_history=[], reviewer_comments=[], model_version=out["model_version"], prompt_version=out["prompt_version"],
+                  language=out.get("language"), **editable)
         db.add(d)
     else:
         d.version += 1
         d.status = "pending"
         d.edited_by_lawyer = False
         d.model_version, d.prompt_version = out["model_version"], out["prompt_version"]
+        d.language = out.get("language")
         for k, v in editable.items():
             setattr(d, k, v)
     d.revision_history = [*d.revision_history, {"version": d.version, "at": now.isoformat(), "by": f"model:{out['model_version']}",

@@ -17,8 +17,8 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []) {
   return { data, error, loading, reload, setData };
 }
 
-export function UrgencyBadge({ u }: { u: Urgency }) {
-  return <span className={`badge urg-${u}`}>{u}</span>;
+export function UrgencyBadge({ u, label }: { u: Urgency; label?: string }) {
+  return <span className={`badge urg-${u}`}>{label ?? u}</span>;
 }
 
 export function StatusBadge({ s }: { s: string }) {

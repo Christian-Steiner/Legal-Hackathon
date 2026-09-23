@@ -53,6 +53,7 @@ export default function ReviewDetail() {
       </div>
       <p className="muted">
         For <b>{d.company.name}</b> ({d.company.industry}, {d.company.hq_canton}) · client language {d.company.preferred_language}
+        {d.language && d.language !== d.company.preferred_language && <> · <Badge tone="bad">draft written in {d.language}</Badge></>}
       </p>
 
       {d.warnings.length > 0 && (
@@ -63,6 +64,9 @@ export default function ReviewDetail() {
         {/* ---------------- LEFT: the draft ---------------- */}
         <section className="card">
           <h2>AI draft <span className="muted small">({d.model_version} · {d.prompt_version}{d.edited_by_lawyer ? " · edited by lawyer" : ""})</span></h2>
+
+          <label>Title shown to the client{d.language ? ` (${d.language})` : ""}</label>
+          <input value={form.title} disabled={locked} placeholder={u.title} onChange={(e) => set("title", e.target.value)} />
 
           <label>Summary</label>
           <textarea rows={7} value={form.summary} disabled={locked} onChange={(e) => set("summary", e.target.value)} />
@@ -188,6 +192,7 @@ export default function ReviewDetail() {
 }
 
 interface Editable {
+  title: string;
   summary: string;
   urgency: Urgency;
   affected_departments: AffectedDepartment[];
@@ -195,6 +200,6 @@ interface Editable {
   citations: Citation[];
 }
 const toEditable = (d: DraftDetail): Editable => ({
-  summary: d.summary, urgency: d.urgency, affected_departments: d.affected_departments,
+  title: d.title ?? "", summary: d.summary, urgency: d.urgency, affected_departments: d.affected_departments,
   next_steps: d.next_steps, citations: d.citations,
 });

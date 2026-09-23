@@ -50,6 +50,19 @@ DISCLAIMER = (
     "situation. It is based on the cited official source and an AI-assisted draft. "
     "Please contact LEXR before taking legal decisions."
 )
+# Same disclaimer in every client language; alerts and emails use the draft's language.
+DISCLAIMERS = {
+    "EN": DISCLAIMER,
+    "DE": ("Diese Mitteilung wurde von LEXR geprüft, ist aber keine vollständige rechtliche Beurteilung Ihrer "
+           "Situation. Sie beruht auf der zitierten amtlichen Quelle und einem KI-gestützten Entwurf. "
+           "Bitte kontaktieren Sie LEXR, bevor Sie rechtliche Entscheidungen treffen."),
+    "FR": ("Cette notification a été vérifiée par LEXR, mais ne constitue pas une analyse juridique complète de votre "
+           "situation. Elle repose sur la source officielle citée et sur un projet assisté par IA. "
+           "Veuillez contacter LEXR avant de prendre des décisions juridiques."),
+    "IT": ("Questa notifica è stata verificata da LEXR, ma non costituisce una valutazione giuridica completa della "
+           "vostra situazione. Si basa sulla fonte ufficiale citata e su una bozza assistita dall'IA. "
+           "Si prega di contattare LEXR prima di prendere decisioni giuridiche."),
+}
 
 
 class ORM(BaseModel):
@@ -233,6 +246,9 @@ class DraftOut(ORM):
     revision_history: list[RevisionEntry]
     model_version: str
     prompt_version: str
+    # client-facing title and the language the draft is written in (None on drafts from before draft-v2)
+    title: str | None = None
+    language: Language | None = None
     edited_by_lawyer: bool
     reviewed_by: str | None
     reviewed_at: datetime | None
@@ -250,6 +266,7 @@ class DraftDetail(DraftOut):
 
 
 class DraftEdit(BaseModel):
+    title: str | None = None
     summary: str | None = None
     affected_departments: list[AffectedDepartment] | None = None
     next_steps: list[NextStep] | None = None
@@ -279,6 +296,7 @@ class AlertOut(ORM):
     citations: list[Citation]
     source_url: str | None
     is_simulated: bool
+    language: Language = "EN"
     disclaimer: str = DISCLAIMER
 
 

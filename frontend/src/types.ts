@@ -149,6 +149,9 @@ export interface Draft {
   revision_history: RevisionEntry[];
   model_version: string;
   prompt_version: string;
+  // client-facing title and the language the draft is written in (null on drafts from before draft-v2)
+  title?: string | null;
+  language?: Language | null;
   edited_by_lawyer: boolean;
   reviewed_by: string | null;
   reviewed_at: string | null;
@@ -161,7 +164,7 @@ export interface DraftDetail extends Draft {
   match: Match;
   company: Company;
 }
-export type DraftEdit = Partial<Pick<Draft, "summary" | "affected_departments" | "next_steps" | "urgency" | "citations">>;
+export type DraftEdit = Partial<Pick<Draft, "title" | "summary" | "affected_departments" | "next_steps" | "urgency" | "citations">>;
 
 export interface Alert {
   id: number;
@@ -178,6 +181,7 @@ export interface Alert {
   citations: Citation[];
   source_url: string | null;
   is_simulated: boolean;
+  language?: Language; // everything client-facing about this alert is in this language
   disclaimer: string;
 }
 export interface EmailPreview {

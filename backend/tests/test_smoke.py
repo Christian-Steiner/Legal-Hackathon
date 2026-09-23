@@ -8,6 +8,7 @@ os.environ["DEMO_MODE"] = "true"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app import schemas  # noqa: E402
 from app.main import app  # noqa: E402
 from scripts import seed  # noqa: E402
 
@@ -37,12 +38,22 @@ def test_pipeline_and_approval_gate():
 
         alert = client.post(f"/api/drafts/{d['id']}/approve", json={"comment": "ok"}, headers=LAWYER).json()
         assert alert["reviewed_by"] == "lawyer:Test Lawyer" and alert["summary"] == "Edited by lawyer."
-        assert "not a full legal assessment" in alert["disclaimer"]
+        # The whole alert is in the draft's language, which is the client's preferred language
+        company = client.get(f"/api/companies/{d['company_id']}").json()
+        assert d["language"] == alert["language"] == company["preferred_language"]
+        assert alert["disclaimer"] == schemas.DISCLAIMERS[alert["language"]]
         # Approved drafts are frozen
         assert client.put(f"/api/drafts/{d['id']}", json={"summary": "x"}, headers=LAWYER).status_code == 409
 
         preview = client.get(f"/api/alerts/{alert['id']}/email-preview").json()
-        assert preview["to"] and "Reviewed by LEXR" in preview["body_text"]
+        assert preview["to"] and "LEXR" in preview["body_text"]
+        assert schemas.DISCLAIMERS[alert["language"]] in preview["body_text"]
+        # Per-department email: only that department's address and part
+        dep = alert["departments"][0]
+        one = client.get(f"/api/alerts/{alert['id']}/email-preview", params={"department_id": dep["department_id"]}).json()
+        assert len(one["to"]) == 1 and dep["why"] in one["body_text"]
+        for other in alert["departments"][1:]:
+            assert other["why"] not in one["body_text"]
 
         # Revision request regenerates and returns to pending with a new version
         d2 = drafts[1]
