@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
+import type { Draft } from "../types";
 import { ErrorBox, Loading, StatusBadge, UrgencyBadge, fmtDate, useAsync } from "../components/ui";
 
 const URG_ORDER = { high: 0, medium: 1, low: 2 };
@@ -14,7 +15,10 @@ export default function ReviewQueue() {
   const cname = (id: number) => companies.data?.find((c) => c.id === id)?.name ?? id;
   const utitle = (id: string) => updates.data?.find((u) => u.id === id)?.title ?? id;
 
-  const rows = [...(drafts.data ?? [])].sort((a, b) => URG_ORDER[a.urgency] - URG_ORDER[b.urgency]);
+  // Urgency first, then the earliest due date among the next steps (no date last).
+  const due = (d: Draft) => d.next_steps.map((n) => n.due).filter(Boolean).sort()[0] ?? "9999";
+  const rows = [...(drafts.data ?? [])].sort((a, b) =>
+    URG_ORDER[a.urgency] - URG_ORDER[b.urgency] || due(a).localeCompare(due(b)));
 
   return (
     <div>
@@ -37,7 +41,7 @@ export default function ReviewQueue() {
       <Loading on={drafts.loading} />
       <table className="clickable">
         <thead>
-          <tr><th>Urgency</th><th>Client</th><th>Regulatory update</th><th>Departments</th><th>Warnings</th><th>Status</th><th>Created</th></tr>
+          <tr><th>Urgency</th><th>Client</th><th>Regulatory update</th><th>Departments</th><th>Warnings</th><th>Status</th><th>Due</th><th>Created</th></tr>
         </thead>
         <tbody>
           {rows.map((d) => (
@@ -48,6 +52,7 @@ export default function ReviewQueue() {
               <td className="small">{d.affected_departments.map((x) => x.name).join(", ")}</td>
               <td>{d.warnings.length > 0 && <span className="warn-count" title={d.warnings.join("\n")}>⚠ {d.warnings.length}</span>}</td>
               <td><StatusBadge s={d.status} /></td>
+              <td className="small nowrap">{due(d) === "9999" ? "–" : fmtDate(due(d))}</td>
               <td className="small">{fmtDate(d.created_at)}</td>
             </tr>
           ))}

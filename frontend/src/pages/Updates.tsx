@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 import { api } from "../api";
-import { Badge, ErrorBox, Loading, UPDATE_TYPE_LABEL, UrgencyBadge, fmtDate, useAsync } from "../components/ui";
+import { Badge, ErrorBox, Loading, SCOPE_LABEL, UPDATE_TYPE_LABEL, UrgencyBadge, fmtDate, useAsync } from "../components/ui";
 
 export default function Updates() {
   const [type, setType] = useState("");
@@ -36,7 +36,8 @@ export default function Updates() {
                   {u.consultation_deadline && <><br />until {fmtDate(u.consultation_deadline)}</>}
                 </td>
                 <td className="small">
-                  {u.classification ? <><UrgencyBadge u={u.classification.urgency} /> {u.classification.topics.join(", ")}<br /><span className="muted">{u.classification.functional_teams.join(" + ")}</span></> : <span className="muted">not classified</span>}
+                  {u.classification ? <><UrgencyBadge u={u.classification.urgency} /> {u.classification.topics.join(", ")}<br /><span className="muted">{u.classification.functional_teams.join(" + ")}</span>
+                    {u.classification.applies_to?.map((a) => <Fragment key={a}> <Badge>applies to {SCOPE_LABEL[a] ?? a}</Badge></Fragment>)}</> : <span className="muted">not classified</span>}
                 </td>
                 <td className="small">{u.sources.length > 1 ? <Badge tone="good">{u.sources.length} merged</Badge> : u.sources[0]?.source}</td>
               </tr>

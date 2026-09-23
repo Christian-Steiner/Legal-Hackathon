@@ -39,6 +39,14 @@ ACTIVITY_FLAGS = {
     "nonprofit": "Is a nonprofit / handles beneficiary data",
 }
 
+# Who an update applies to beyond sector flags: obligations that hit every company of a kind.
+# Classified per update; the matching side derives them from the profile (rules.company_scopes).
+# An update with a scope is never vetoed as "sector-specific" for companies inside that scope.
+APPLICABILITY_SCOPES = {
+    "all_legal_entities": "every company / legal entity in Switzerland (e.g. company law, beneficial owners, profit tax)",
+    "employers": "every company that employs staff (e.g. labour law, social insurance, payroll withholding tax)",
+}
+
 SIZE_BANDS = ["1-10", "11-50", "51-250", "251-1000", "1000+"]
 CANTONS = [
     "AG", "AI", "AR", "BE", "BL", "BS", "FR", "GE", "GL", "GR", "JU", "LU", "NE", "NW",
@@ -125,6 +133,7 @@ class Classification(BaseModel):
     functional_teams: list[str]  # subset of FUNCTIONAL_TEAMS
     triggered_flags: list[str]  # subset of ACTIVITY_FLAGS keys
     affected_business_types: list[str] = Field(default_factory=list)
+    applies_to: list[str] = Field(default_factory=list)  # subset of APPLICABILITY_SCOPES keys
     urgency: Urgency
     rationale: str
     model_version: str

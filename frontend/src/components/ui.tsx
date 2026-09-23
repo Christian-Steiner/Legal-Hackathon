@@ -50,3 +50,8 @@ export const UPDATE_TYPE_LABEL: Record<string, string> = {
   consultation: "Consultation",
   simulated: "Simulated (organisers' dataset)",
 };
+
+export const SCOPE_LABEL: Record<string, string> = {
+  all_legal_entities: "all companies",
+  employers: "all employers",
+};
