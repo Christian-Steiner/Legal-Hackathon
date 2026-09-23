@@ -1,11 +1,12 @@
 """Manually triggered pipeline steps (lawyer dashboard buttons)."""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import schemas
 from app.db import get_db
 from app.deps import require_lawyer
+from app.ai.llm import LLMError
 from app.models import AuditLogEntry
 from app.services import pipeline
 
@@ -36,6 +37,17 @@ def match(force: bool = False, db: Session = Depends(get_db), _: str = Depends(r
 @router.post("/pipeline/draft", response_model=schemas.PipelineResult)
 def draft(db: Session = Depends(get_db), _: str = Depends(require_lawyer)):
     return pipeline.draft_all(db)
+
+
+@router.post("/pipeline/process/{update_id:path}")
+def process_update(update_id: str, db: Session = Depends(get_db), _: str = Depends(require_lawyer)):
+    """Re-run classify -> match -> draft for ONE update with the current LLM (testing a provider)."""
+    try:
+        return pipeline.process_update(db, update_id)
+    except KeyError:
+        raise HTTPException(404, "Update not found")
+    except LLMError as e:
+        raise HTTPException(502, f"LLM call failed: {e}")
 
 
 @router.post("/pipeline/run-all", response_model=list[schemas.PipelineResult])
