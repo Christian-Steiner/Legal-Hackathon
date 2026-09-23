@@ -154,13 +154,14 @@ def _short_ref(heading: str) -> str:
     return m.group(1) if m else heading[:60]
 
 
-def fetch_live(today: date | None = None, with_text: bool = True) -> list[dict]:
+def fetch_live(today: date | None = None, with_text: bool = True, max_items: int = 20) -> list[dict]:
     today = today or date.today()
     items = (
-        fetch_new_publications(today - timedelta(days=21))
-        + fetch_upcoming_entry_into_force(today)
-        + fetch_open_consultations(today)
+        fetch_new_publications(today - timedelta(days=21), limit=max_items)
+        + fetch_upcoming_entry_into_force(today, limit=max_items)
+        + fetch_open_consultations(today, limit=max_items)
     )
+    items = items[:max_items]
     now = datetime.now(timezone.utc).isoformat()
     for it in items:
         it["fetched_at"] = now

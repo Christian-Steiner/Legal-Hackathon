@@ -13,7 +13,14 @@ const STEPS = [
 ] as const;
 
 export default function Dashboard() {
-  const [log, setLog] = useState<PipelineResult[]>([]);
+  const [log, setLog] = useState<PipelineResult[]>(() => {
+    try {
+      const saved = sessionStorage.getItem("pipeline_run_log");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pending = useAsync(() => api.drafts({ status: "pending" }));
@@ -25,7 +32,14 @@ export default function Dashboard() {
     setError(null);
     try {
       const r = await fn();
-      setLog((l) => [...(Array.isArray(r) ? r : [r]), ...l]);
+      const newItems = Array.isArray(r) ? r : [r];
+      setLog((l) => {
+        const updated = [...newItems, ...l];
+        try {
+          sessionStorage.setItem("pipeline_run_log", JSON.stringify(updated));
+        } catch { /* storage quota ignore */ }
+        return updated;
+      });
       pending.reload();
       updates.reload();
     } catch (e) {
@@ -33,6 +47,13 @@ export default function Dashboard() {
     } finally {
       setBusy(null);
     }
+  };
+
+  const clearLog = () => {
+    setLog([]);
+    try {
+      sessionStorage.removeItem("pipeline_run_log");
+    } catch { /* ignore */ }
   };
 
   return (
@@ -47,9 +68,14 @@ export default function Dashboard() {
       <div className="card">
         <div className="row between">
           <h2>Run steps</h2>
-          <button className="primary" disabled={!!busy} onClick={() => run("all", api.runAll)}>
-            {busy === "all" ? "Running…" : "Run all steps"}
-          </button>
+          <div className="row" style={{ gap: "8px" }}>
+            <button className="primary" disabled={!!busy} onClick={() => run("all", () => api.runAll(false))}>
+              {busy === "all" ? "Running demo pipeline…" : "Run all steps (Demo)"}
+            </button>
+            <button className="secondary" disabled={!!busy} onClick={() => run("all-live", () => api.runAll(true))}>
+              {busy === "all-live" ? "Running live pipeline…" : "Run all steps (Live Fedlex, max 20)"}
+            </button>
+          </div>
         </div>
         {STEPS.map((s) => (
           <div key={s.key} className="row step">
@@ -63,7 +89,7 @@ export default function Dashboard() {
           <button disabled={!!busy} onClick={() => run("live", () => api.runStep("ingest/fedlex", { live: true }))}>
             Ingest live from Fedlex SPARQL
           </button>
-          <span className="muted small">Bypasses the demo cache (needs internet, ~20 s)</span>
+          <span className="muted small">Bypasses the demo cache (needs internet, max 20 items)</span>
         </div>
         <p className="small muted">
           Nothing reaches a client from here. Drafts go to the <Link to="/lawyer/review">review queue</Link>; only
@@ -72,7 +98,10 @@ export default function Dashboard() {
       </div>
       {log.length > 0 && (
         <div className="card">
-          <h2>Run log</h2>
+          <div className="row between">
+            <h2>Run log</h2>
+            <button className="ghost small" onClick={clearLog}>Clear log</button>
+          </div>
           <table>
             <thead><tr><th>Step</th><th>Created</th><th>Updated</th><th>Skipped</th><th>Info / errors</th></tr></thead>
             <tbody>
