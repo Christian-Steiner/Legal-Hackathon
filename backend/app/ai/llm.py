@@ -46,10 +46,13 @@ def _get_client():
 
 def complete_json(system: str, user: str, max_tokens: int = 1500) -> dict:
     """Ask the model for a single JSON object and parse it. Raises LLMError on failure."""
+    import time
     model = settings.apertus_model if settings.llm_provider == "apertus" else settings.openai_model
     kwargs = {}
     if settings.llm_provider == "openai":
         kwargs["response_format"] = {"type": "json_object"}
+    print(f"  [LLM] Calling {settings.llm_provider} ({model}, max_tokens={max_tokens})...", flush=True)
+    t0 = time.time()
     try:
         resp = _get_client().chat.completions.create(
             model=model,
@@ -59,8 +62,13 @@ def complete_json(system: str, user: str, max_tokens: int = 1500) -> dict:
             **kwargs,
         )
     except Exception as e:  # network, auth, rate limit
+        elapsed = time.time() - t0
+        print(f"  [LLM] Error after {elapsed:.2f}s: {e}", flush=True)
         raise LLMError(str(e)) from e
-    return parse_json(resp.choices[0].message.content or "")
+    elapsed = time.time() - t0
+    content = resp.choices[0].message.content or ""
+    print(f"  [LLM] Response received in {elapsed:.2f}s ({len(content)} chars)", flush=True)
+    return parse_json(content)
 
 
 def parse_json(text: str) -> dict:

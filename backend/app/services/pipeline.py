@@ -79,6 +79,7 @@ def upsert_items(db: Session, items: list[dict], actor: str = "system") -> schem
 def ingest_fedlex(db: Session, live: bool | None = None) -> schemas.PipelineResult:
     live = (not settings.demo_mode) if live is None else live
     items = fedlex.fetch_live() if live else fedlex.load_cache()
+    items = items[:2] #limit number of regulatory changes for demo version
     res = upsert_items(db, items)
     res.step = "ingest_fedlex"
     res.info = {"mode": "live" if live else "cache", "items": len(items)}
@@ -86,7 +87,7 @@ def ingest_fedlex(db: Session, live: bool | None = None) -> schemas.PipelineResu
 
 
 def ingest_dataset(db: Session) -> schemas.PipelineResult:
-    res = upsert_items(db, dataset.load_items())
+    res = upsert_items(db, dataset.load_items()[:2])
     res.step = "ingest_dataset"
     return res
 
@@ -101,17 +102,22 @@ def _company_dict(c: Company) -> dict:
 
 def classify_all(db: Session, force: bool = False) -> schemas.PipelineResult:
     res = schemas.PipelineResult(step="classify")
-    for u in db.scalars(select(RegulatoryUpdate)):
+    updates = list(db.scalars(select(RegulatoryUpdate)))
+    print(f"\n[Classify] Starting classification for {len(updates)} updates...", flush=True)
+    for i, u in enumerate(updates, 1):
         if u.classification and not force:
             res.skipped += 1
             continue
+        print(f"[{i}/{len(updates)}] Classifying '{u.title[:60]}' ({u.id})...", flush=True)
         try:
             _classify_one(db, u)
         except LLMError as e:
+            print(f"  [ERROR] Classify failed for {u.id}: {e}", flush=True)
             res.errors.append(f"{u.id}: {e}")
             continue
         res.created += 1
         db.commit()
+    print(f"[Classify] Done: {res.created} created, {res.skipped} skipped, {len(res.errors)} errors.", flush=True)
     return res
 
 
@@ -174,29 +180,41 @@ def process_update(db: Session, update_id: str, company_ids: list[int] | None = 
 def match_all(db: Session, force: bool = False) -> schemas.PipelineResult:
     res = schemas.PipelineResult(step="match")
     companies = list(db.scalars(select(Company)))
-    for u in db.scalars(select(RegulatoryUpdate).where(RegulatoryUpdate.classification.is_not(None))):
+    updates = list(db.scalars(select(RegulatoryUpdate).where(RegulatoryUpdate.classification.is_not(None))))
+    total_pairs = len(updates) * len(companies)
+    print(f"\n[Match] Matching {len(updates)} updates against {len(companies)} companies ({total_pairs} pairs)...", flush=True)
+    pair_idx = 0
+    for u in updates:
         ud = _update_dict(u)
         for c in companies:
+            pair_idx += 1
             existing = db.scalar(select(Match).where(Match.update_id == u.id, Match.company_id == c.id))
             if existing and not force:
                 res.skipped += 1
                 continue
+            print(f"[{pair_idx}/{total_pairs}] Matching '{c.name}' against '{u.title[:40]}'...", flush=True)
             try:
                 m = _match_one(db, u, ud, c, existing)
             except LLMError as e:
+                print(f"  [ERROR] Match failed for {u.id}/{c.id}: {e}", flush=True)
                 res.errors.append(f"{u.id}/{c.id}: {e}")
                 continue
             if m is None:
                 res.skipped += 1
                 continue
             res.created += 1
+            status_str = "MATCH" if out.get("matched") else "NO MATCH"
+            print(f"  -> {status_str} (score: {out.get('relevance_score', 0):.2f})", flush=True)
         db.commit()
-    res.info = {"matched": db.query(Match).filter(Match.matched.is_(True)).count()}
+    matched_count = db.query(Match).filter(Match.matched.is_(True)).count()
+    res.info = {"matched": matched_count}
+    print(f"[Match] Done: {res.created} evaluated, {matched_count} matches found.", flush=True)
     return res
 
 
 def draft_for_match(db: Session, m: Match, revision_comment: str | None = None, actor_note: str = "generated") -> Draft:
     """Create (or regenerate) the draft for a match. Raises LLMError."""
+    print(f"  [Drafting] Match {m.id}: {m.company.name} / {m.update.title[:50]}...", flush=True)
     out = ai_drafting.draft(_company_dict(m.company), _update_dict(m.update),
                             schemas.MatchOut.model_validate(m).model_dump(mode="json"), revision_comment)
     now = datetime.now(timezone.utc)
@@ -224,17 +242,22 @@ def draft_for_match(db: Session, m: Match, revision_comment: str | None = None, 
 
 def draft_all(db: Session) -> schemas.PipelineResult:
     res = schemas.PipelineResult(step="draft")
-    for m in db.scalars(select(Match).where(Match.matched.is_(True))):
+    matches = list(db.scalars(select(Match).where(Match.matched.is_(True))))
+    print(f"\n[Draft] Generating drafts for {len(matches)} matches...", flush=True)
+    for i, m in enumerate(matches, 1):
         if db.scalar(select(Draft).where(Draft.match_id == m.id)):
             res.skipped += 1
             continue
+        print(f"[{i}/{len(matches)}] Drafting for match {m.id}...", flush=True)
         try:
             draft_for_match(db, m)
             res.created += 1
             db.commit()
         except LLMError as e:
             db.rollback()
+            print(f"  [ERROR] Draft failed for match {m.id}: {e}", flush=True)
             res.errors.append(f"match {m.id}: {e}")
+    print(f"[Draft] Done: {res.created} drafts created, {res.skipped} skipped, {len(res.errors)} errors.", flush=True)
     return res
 
 
