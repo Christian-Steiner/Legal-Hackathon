@@ -76,23 +76,30 @@ def complete_json(system: str, user: str, max_tokens: int = 1500) -> dict:
     kwargs = {}
     if settings.llm_provider == "openai":
         kwargs["response_format"] = {"type": "json_object"}
-    _wait_for_rate_limit()
-    print(f"  [LLM] Calling {settings.llm_provider} ({model}, max_tokens={max_tokens})...", flush=True)
-    t0 = time.time()
-    try:
-        resp = _get_client().chat.completions.create(
-            model=model,
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-            temperature=settings.llm_temperature,
-            max_tokens=max_tokens,
-            **kwargs,
-        )
-    except Exception as e:  # network, auth, rate limit
-        print(f"  [LLM] Error after {time.time() - t0:.2f}s: {e}", flush=True)
-        raise LLMError(str(e)) from e
-    content = resp.choices[0].message.content or ""
-    print(f"  [LLM] Response received in {time.time() - t0:.2f}s ({len(content)} chars)", flush=True)
-    out = parse_json(content)
+    for attempt in (1, 2):  # retry once: long answers are sometimes cut off or malformed
+        _wait_for_rate_limit()
+        print(f"  [LLM] Calling {settings.llm_provider} ({model}, max_tokens={max_tokens})...", flush=True)
+        t0 = time.time()
+        try:
+            resp = _get_client().chat.completions.create(
+                model=model,
+                messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+                temperature=settings.llm_temperature,
+                max_tokens=max_tokens,
+                **kwargs,
+            )
+        except Exception as e:  # network, auth, rate limit
+            print(f"  [LLM] Error after {time.time() - t0:.2f}s: {e}", flush=True)
+            raise LLMError(str(e)) from e
+        content = resp.choices[0].message.content or ""
+        print(f"  [LLM] Response received in {time.time() - t0:.2f}s ({len(content)} chars)", flush=True)
+        try:
+            out = parse_json(content)
+            break
+        except LLMError as e:
+            if attempt == 2:
+                raise
+            print(f"  [LLM] Invalid JSON, retrying once: {str(e)[:120]}", flush=True)
     if settings.llm_cache:
         CACHE_DIR.mkdir(exist_ok=True)
         cache_file.write_text(json.dumps(out, ensure_ascii=False))
