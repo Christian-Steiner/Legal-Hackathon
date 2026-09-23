@@ -23,7 +23,8 @@ def classify(update: dict) -> dict:
     else:
         raw = llm.complete_json(
             prompts.CLASSIFY_SYSTEM,
-            prompts.CLASSIFY_USER.format(update=update_for_prompt(update), teams=FUNCTIONAL_TEAMS, flags=list(ACTIVITY_FLAGS)),
+            prompts.CLASSIFY_USER.format(update=update_for_prompt(update), teams=FUNCTIONAL_TEAMS,
+                                         flags="\n".join(f"- {k}: {v}" for k, v in ACTIVITY_FLAGS.items())),
             max_tokens=400,
         )
         out = {

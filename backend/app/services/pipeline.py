@@ -77,10 +77,21 @@ def upsert_items(db: Session, items: list[dict], actor: str = "system") -> schem
     return res
 
 
+# Demo selection (keeps LLM calls low): real Fedlex items that fit the demo companies.
+# Only applied to the cached snapshot; "Ingest live" still loads everything from Fedlex.
+DEMO_FEDLEX_IDS = {
+    "oc/2026/322",  # Anti-Money Laundering Act (GwG), in force 1 Oct 2026 -> Helvetia Pay
+    "oc/2026/323",  # Transparency of legal entities act (beneficial owners), in force 1 Oct 2026 -> most companies
+    "oc/2026/440",  # fedpol data standard for reports to the money-laundering office -> Helvetia Pay
+}
+DEMO_DATASET_IDS = {"R001", "R002"}  # high-risk AI guidance, customer analytics guidance -> Nimbus AI
+
+
 def ingest_fedlex(db: Session, live: bool | None = None) -> schemas.PipelineResult:
     live = (not settings.demo_mode) if live is None else live
     items = fedlex.fetch_live() if live else fedlex.load_cache()
-    items = items[:2]  # limit number of regulatory changes for demo version
+    if not live:
+        items = [it for it in items if it["external_id"] in DEMO_FEDLEX_IDS]
     res = upsert_items(db, items)
     res.step = "ingest_fedlex"
     res.info = {"mode": "live" if live else "cache", "items": len(items)}
@@ -88,7 +99,7 @@ def ingest_fedlex(db: Session, live: bool | None = None) -> schemas.PipelineResu
 
 
 def ingest_dataset(db: Session) -> schemas.PipelineResult:
-    res = upsert_items(db, dataset.load_items()[:2])
+    res = upsert_items(db, [it for it in dataset.load_items() if it["external_id"] in DEMO_DATASET_IDS])
     res.step = "ingest_dataset"
     return res
 
