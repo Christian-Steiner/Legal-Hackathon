@@ -1,0 +1,80 @@
+[
+  {
+    "name": "Nimbus AI AG",
+    "industry": "B2B SaaS / AI",
+    "description": "Zurich AI SaaS startup selling an AI-powered document analytics platform to enterprises in Switzerland and the EU. B2B SaaS with AI features.",
+    "size_band": "11-50",
+    "hq_canton": "ZH",
+    "jurisdictions": ["CH", "EU"],
+    "flags": {"processes_personal_data": true, "customer_profiling": true, "offers_ai_features": true, "monitors_employees": false, "finma_supervised": false, "handles_health_data": false, "minors_as_users": false, "sells_physical_products": false, "public_sector_clients": true, "nonprofit": false},
+    "legal_context": "Subject to the revised Swiss FADP (nDSG). About 40% of customers are in Germany and France, so the EU AI Act and GDPR apply to parts of the business. Uses US cloud sub-processors.",
+    "key_challenges": "Understanding whether our document classification feature is 'high-risk' under the EU AI Act; keeping DPAs and sub-processor lists up to date; public-sector tenders require accessibility.",
+    "topics": ["AI governance", "data protection", "cybersecurity", "accessibility"],
+    "preferred_language": "EN",
+    "departments": [
+      {"name": "Legal & Compliance", "contact_email": "legal@nimbus-ai.example", "functions": ["Legal", "Compliance"], "responsibilities": "Contracts, DPAs, regulatory monitoring"},
+      {"name": "Product", "contact_email": "product@nimbus-ai.example", "functions": ["Product", "Design", "Strategy"], "responsibilities": "Roadmap, AI feature governance"},
+      {"name": "Engineering", "contact_email": "eng@nimbus-ai.example", "functions": ["Engineering", "Security", "Data"], "responsibilities": "Platform, security, ML ops"},
+      {"name": "Sales & Marketing", "contact_email": "growth@nimbus-ai.example", "functions": ["Sales", "Marketing"], "responsibilities": "Tenders, campaigns, consent"},
+      {"name": "People & Finance", "contact_email": "ops@nimbus-ai.example", "functions": ["HR", "Finance", "Tax", "Management"], "responsibilities": "Payroll, tax, HR policies"}
+    ]
+  },
+  {
+    "name": "Helvetia Pay SA",
+    "industry": "Fintech / Payments",
+    "description": "FINMA-licensed payment service provider and fintech in Geneva offering payment accounts and card issuing to SMEs. Uses transaction analytics for fraud detection.",
+    "size_band": "51-250",
+    "hq_canton": "GE",
+    "jurisdictions": ["CH"],
+    "flags": {"processes_personal_data": true, "customer_profiling": true, "offers_ai_features": true, "monitors_employees": true, "finma_supervised": true, "handles_health_data": false, "minors_as_users": false, "sells_physical_products": false, "public_sector_clients": false, "nonprofit": false},
+    "legal_context": "FINMA-supervised (fintech licence). Financial intermediary under the Anti-Money Laundering Act (GwG/AMLA). Must identify beneficial owners of corporate clients. Uses ML models for transaction monitoring.",
+    "key_challenges": "Upcoming AML revisions and the new beneficial-ownership transparency register; explaining ML-based fraud decisions to clients; employee call recording.",
+    "topics": ["financial market regulation", "anti-money laundering", "data protection", "tax", "corporate transparency"],
+    "preferred_language": "FR",
+    "departments": [
+      {"name": "Compliance & AML", "contact_email": "compliance@helvetiapay.example", "functions": ["Compliance", "Legal"], "responsibilities": "KYC, AML, FINMA reporting"},
+      {"name": "Risk & Data", "contact_email": "risk@helvetiapay.example", "functions": ["Data", "Security", "Engineering"], "responsibilities": "Fraud models, data governance"},
+      {"name": "Finance & Tax", "contact_email": "finance@helvetiapay.example", "functions": ["Finance", "Tax"], "responsibilities": "Accounting, withholding tax"},
+      {"name": "Executive Board", "contact_email": "board@helvetiapay.example", "functions": ["Management", "Strategy"], "responsibilities": "Governance, licensing"},
+      {"name": "HR", "contact_email": "hr@helvetiapay.example", "functions": ["HR"], "responsibilities": "Employment, monitoring policies"}
+    ]
+  },
+  {
+    "name": "MediConnect GmbH",
+    "industry": "HealthTech",
+    "description": "Basel telemedicine and patient platform connecting patients with doctors and health insurers. Processes health data, integrates with electronic patient records.",
+    "size_band": "51-250",
+    "hq_canton": "BS",
+    "jurisdictions": ["CH", "EU"],
+    "flags": {"processes_personal_data": true, "customer_profiling": false, "offers_ai_features": true, "monitors_employees": false, "finma_supervised": false, "handles_health_data": true, "minors_as_users": true, "sells_physical_products": false, "public_sector_clients": false, "nonprofit": false},
+    "legal_context": "Processes sensitive health data under the FADP; works with health insurers (KVG context); planning EU expansion (Germany) which raises EHDS and MDR questions for the AI triage feature.",
+    "key_challenges": "Interoperability with the electronic patient record; whether the symptom-checker is a medical device; insurance premium region changes affect pricing partnerships.",
+    "topics": ["health", "data protection", "AI governance", "interoperability"],
+    "preferred_language": "DE",
+    "departments": [
+      {"name": "Legal & Regulatory Affairs", "contact_email": "regulatory@mediconnect.example", "functions": ["Legal", "Compliance", "Public Affairs"], "responsibilities": "Medical device, health law, DPO"},
+      {"name": "Product & Clinical", "contact_email": "product@mediconnect.example", "functions": ["Product", "Design", "Strategy"], "responsibilities": "Patient app, triage AI"},
+      {"name": "Tech & Security", "contact_email": "tech@mediconnect.example", "functions": ["Engineering", "Security", "Data"], "responsibilities": "Hosting, EPR integration"},
+      {"name": "Partnerships & Finance", "contact_email": "partners@mediconnect.example", "functions": ["Finance", "Sales", "Tax"], "responsibilities": "Insurer contracts, pricing"}
+    ]
+  },
+  {
+    "name": "Kiddo Shop AG",
+    "industry": "E-commerce",
+    "description": "Lucerne online shop for toys and children's products with a companion app and loyalty programme. Many users are teenagers; uses recommendation systems and personalised marketing. Imports physical products from the EU and Asia.",
+    "size_band": "11-50",
+    "hq_canton": "LU",
+    "jurisdictions": ["CH", "EU"],
+    "flags": {"processes_personal_data": true, "customer_profiling": true, "offers_ai_features": true, "monitors_employees": false, "finma_supervised": false, "handles_health_data": false, "minors_as_users": true, "sells_physical_products": true, "public_sector_clients": false, "nonprofit": false},
+    "legal_context": "Sells physical products (product safety, CE marking, customs); runs profiling-based recommendations and newsletters; ships to Germany and Austria.",
+    "key_challenges": "Consent banners and marketing consent; profiling of minors in the app; product safety recalls and import rules.",
+    "topics": ["product safety", "consumer protection", "children", "marketing consent", "data protection", "customs"],
+    "preferred_language": "DE",
+    "departments": [
+      {"name": "Legal", "contact_email": "legal@kiddoshop.example", "functions": ["Legal", "Compliance"], "responsibilities": "Terms, privacy, product liability"},
+      {"name": "E-commerce & Product", "contact_email": "product@kiddoshop.example", "functions": ["Product", "Design", "Engineering", "Trust & Safety"], "responsibilities": "Shop, app, recommendations"},
+      {"name": "Marketing & CRM", "contact_email": "marketing@kiddoshop.example", "functions": ["Marketing", "Data", "Sales"], "responsibilities": "Newsletter, loyalty, analytics"},
+      {"name": "Sourcing & Logistics", "contact_email": "ops@kiddoshop.example", "functions": ["Operations", "Finance", "Tax"], "responsibilities": "Imports, customs, product safety"}
+    ]
+  }
+]

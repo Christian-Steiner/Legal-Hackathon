@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: backend/.env        # LLM_PROVIDER, API keys, DEMO_MODE
+    ports:
+      - "127.0.0.1:8010:8000"     # put your reverse proxy (nginx/Caddy/Traefik) in front
+    volumes:
+      - appdata:/data
+volumes:
+  appdata:
