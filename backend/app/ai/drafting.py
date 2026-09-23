@@ -4,8 +4,9 @@ Output shape = the editable part of schemas.DraftOut:
   summary, affected_departments, next_steps, urgency, citations, model_version, prompt_version
 """
 import json
+from datetime import date
 
-from app.ai import llm, prompts
+from app.ai import llm, prompts, rules
 from app.ai.classify import update_for_prompt
 from app.ai.matching import company_for_prompt
 
@@ -27,10 +28,15 @@ def route_departments(company: dict, classification: dict | None) -> list[dict]:
     return out
 
 
-def draft(company: dict, update: dict, match: dict, revision_comment: str | None = None) -> dict:
+def draft(company: dict, update: dict, match: dict, revision_comment: str | None = None,
+          today: date | None = None) -> dict:
+    """Urgency never drops below what the deadlines imply (rules.apply_deadline_floor), whatever the model says."""
+    today = today or date.today()
     base = {"model_version": llm.model_version(), "prompt_version": prompts.DRAFT_VERSION}
     if llm.is_mock():
-        return {**base, **_template(company, update, match)}
+        out = {**base, **_template(company, update, match)}
+        out["urgency"], _ = rules.apply_deadline_floor(out["urgency"], update, today)
+        return out
 
     articles = update.get("source_articles") or [{"ref": "(full text)", "text": (update.get("source_text") or "")[:6000]}]
     raw = llm.complete_json(
@@ -44,16 +50,19 @@ def draft(company: dict, update: dict, match: dict, revision_comment: str | None
             articles=json.dumps(articles[:25], ensure_ascii=False)[:12000],
             revision_note=f"The reviewing lawyer asked for a revision: {revision_comment}\n" if revision_comment else "",
             language=LANGUAGE_NAMES.get(company.get("preferred_language", "EN"), "English"),
+            today=today.isoformat(),
         ),
         max_tokens=1800,
     )
     # TODO(ws2): validate citations against update["source_articles"] (ref exists, quote is a substring)
+    urgency = raw.get("urgency") if raw.get("urgency") in ("high", "medium", "low") else "medium"
+    urgency, _ = rules.apply_deadline_floor(urgency, update, today)
     return {
         **base,
         "summary": raw.get("summary", ""),
         "affected_departments": raw.get("affected_departments") or route_departments(company, update.get("classification")),
         "next_steps": raw.get("next_steps", []),
-        "urgency": raw.get("urgency") if raw.get("urgency") in ("high", "medium", "low") else "medium",
+        "urgency": urgency,
         "citations": [{**c, "source_url": update.get("source_url")} for c in raw.get("citations", [])],
     }
 

@@ -53,6 +53,7 @@ export interface Classification {
   functional_teams: string[];
   triggered_flags: string[];
   affected_business_types: string[];
+  applies_to?: string[]; // "all_legal_entities" | "employers"
   urgency: Urgency;
   rationale: string;
   model_version: string;
