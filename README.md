@@ -6,6 +6,13 @@ citations, and lets a **LEXR lawyer approve, edit or reject every alert** before
 Everything is audit-logged. This is not legal advice.
 
 ## Quick start (no API keys needed)
+Needs [uv](https://docs.astral.sh/uv/) and Node 20+.
+```bash
+make dev        # installs what's missing, seeds the DB on first run, starts API + UI (Ctrl+C stops both)
+```
+Open http://localhost:5173. `make reset` gives you a fresh demo DB, and `make help` lists all targets.
+
+Manual steps, if you prefer:
 ```bash
 # backend (Python 3.11+, uv)
 cd backend

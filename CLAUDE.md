@@ -10,6 +10,9 @@ each with their own Claude. Read `docs/ROADMAP.md` for the plan and your workstr
 
 ## Commands
 ```bash
+make dev      # from repo root: install deps, seed if no DB, run backend :8000 + frontend :5173
+make reset    # wipe + re-seed DB;  make test  # pytest + frontend build;  make eval
+
 cd backend && uv sync && uv run python -m scripts.seed --pipeline   # reset DB + seed + run pipeline (mock)
 cd backend && uv run uvicorn app.main:app --reload --port 8000     # API on :8000, docs at /docs
 cd backend && uv run pytest -q                                      # smoke test (must stay green)
