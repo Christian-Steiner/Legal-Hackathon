@@ -203,8 +203,8 @@ def match_all(db: Session, force: bool = False) -> schemas.PipelineResult:
                 res.skipped += 1
                 continue
             res.created += 1
-            status_str = "MATCH" if out.get("matched") else "NO MATCH"
-            print(f"  -> {status_str} (score: {out.get('relevance_score', 0):.2f})", flush=True)
+            status_str = "MATCH" if m.matched else "NO MATCH"
+            print(f"  -> {status_str} (score: {m.relevance_score:.2f})", flush=True)
         db.commit()
     matched_count = db.query(Match).filter(Match.matched.is_(True)).count()
     res.info = {"matched": matched_count}
