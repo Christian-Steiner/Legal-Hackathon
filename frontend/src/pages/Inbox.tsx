@@ -2,6 +2,7 @@
 // TODO(ws3): mark as read; filter by urgency; nicer email preview.
 import { useState } from "react";
 import { api } from "../api";
+import { ContactLawyerModal, lawyerName } from "../components/ContactLawyer";
 import { Badge, Disclaimer, ErrorBox, UrgencyBadge, fmtDate, useAsync } from "../components/ui";
 import { useSession } from "../session";
 import type { Alert, EmailPreview } from "../types";
@@ -11,6 +12,7 @@ export default function Inbox() {
   const alerts = useAsync(() => (s.companyId ? api.companyAlerts(s.companyId) : Promise.resolve([])), [s.companyId]);
   const company = useAsync(() => (s.companyId ? api.company(s.companyId) : Promise.resolve(null)), [s.companyId]);
   const [preview, setPreview] = useState<EmailPreview | null>(null);
+  const [contact, setContact] = useState<Alert | null>(null);
 
   if (!s.companyId) return <p>Select a client in the top right, or complete onboarding.</p>;
 
@@ -51,11 +53,15 @@ export default function Inbox() {
               </div>
               <p className="reviewed">✔ Reviewed by LEXR ({a.reviewed_by.replace("lawyer:", "")}) on {fmtDate(a.delivered_at)}</p>
               <Disclaimer text={a.disclaimer} />
-              <button className="link" onClick={() => api.emailPreview(a.id).then(setPreview)}>Show email preview</button>
+              <div className="row wrap between contact">
+                <button className="primary" onClick={() => setContact(a)}>Ask {lawyerName(a.reviewed_by)} about this</button>
+                <button className="link" onClick={() => api.emailPreview(a.id).then(setPreview)}>Show email preview</button>
+              </div>
             </div>
           ))}
         </section>
       ))}
+      {contact && <ContactLawyerModal alert={contact} companyName={company.data?.name ?? ""} onClose={() => setContact(null)} />}
       {preview && (
         <div className="modal" onClick={() => setPreview(null)}>
           <div className="card" onClick={(e) => e.stopPropagation()}>
