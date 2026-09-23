@@ -45,7 +45,7 @@ def draft(company: dict, update: dict, match: dict, revision_comment: str | None
             revision_note=f"The reviewing lawyer asked for a revision: {revision_comment}\n" if revision_comment else "",
             language=LANGUAGE_NAMES.get(company.get("preferred_language", "EN"), "English"),
         ),
-        max_tokens=1800,
+        max_tokens=1200,
     )
     # TODO(ws2): validate citations against update["source_articles"] (ref exists, quote is a substring)
     return {

@@ -19,3 +19,6 @@ frontend/dist/
 .idea/
 .vscode/
 *.tsbuildinfo
+
+# LLM answer cache (local)
+backend/data/llm_cache/

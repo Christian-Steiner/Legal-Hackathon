@@ -4,14 +4,33 @@ LLM_PROVIDER=mock     -> no network, callers fall back to deterministic heuristi
 LLM_PROVIDER=apertus  -> Swisscom Apertus 1.5 70B (Swiss-hosted, OpenAI-compatible)
 LLM_PROVIDER=openai   -> OpenAI (hackathon credits)
 """
+import hashlib
 import json
 import re
+import threading
+import time
 
-from app.config import settings
+from app.config import DATA_DIR, settings
+
+CACHE_DIR = DATA_DIR / "llm_cache"
 
 
 class LLMError(RuntimeError):
     pass
+
+
+_rate_lock = threading.Lock()
+_next_slot = 0.0
+
+
+def _wait_for_rate_limit() -> None:
+    """Space out request starts to at most LLM_MAX_RPS per second, across all threads."""
+    global _next_slot
+    with _rate_lock:
+        now = time.monotonic()
+        slot = max(now, _next_slot)
+        _next_slot = slot + 1.0 / settings.llm_max_rps
+    time.sleep(max(0.0, slot - now))
 
 
 def is_mock() -> bool:
@@ -36,9 +55,9 @@ def _get_client():
         from openai import OpenAI
 
         if settings.llm_provider == "apertus":
-            _client = OpenAI(api_key=settings.apertus_api_key, base_url=settings.apertus_base_url)
+            _client = OpenAI(api_key=settings.apertus_api_key, base_url=settings.apertus_base_url, max_retries=4)
         elif settings.llm_provider == "openai":
-            _client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
+            _client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url, max_retries=4)
         else:
             raise LLMError(f"No client for provider {settings.llm_provider!r}")
     return _client
@@ -46,11 +65,18 @@ def _get_client():
 
 def complete_json(system: str, user: str, max_tokens: int = 1500) -> dict:
     """Ask the model for a single JSON object and parse it. Raises LLMError on failure."""
-    import time
     model = settings.apertus_model if settings.llm_provider == "apertus" else settings.openai_model
+    key = hashlib.sha256(json.dumps([settings.llm_provider, model, settings.llm_temperature, system, user, max_tokens],
+                                    ensure_ascii=False).encode()).hexdigest()
+    cache_file = CACHE_DIR / f"{key}.json"
+    if settings.llm_cache and cache_file.exists():
+        print(f"  [LLM] cache hit ({settings.llm_provider})", flush=True)
+        return json.loads(cache_file.read_text())
+
     kwargs = {}
     if settings.llm_provider == "openai":
         kwargs["response_format"] = {"type": "json_object"}
+    _wait_for_rate_limit()
     print(f"  [LLM] Calling {settings.llm_provider} ({model}, max_tokens={max_tokens})...", flush=True)
     t0 = time.time()
     try:
@@ -62,13 +88,15 @@ def complete_json(system: str, user: str, max_tokens: int = 1500) -> dict:
             **kwargs,
         )
     except Exception as e:  # network, auth, rate limit
-        elapsed = time.time() - t0
-        print(f"  [LLM] Error after {elapsed:.2f}s: {e}", flush=True)
+        print(f"  [LLM] Error after {time.time() - t0:.2f}s: {e}", flush=True)
         raise LLMError(str(e)) from e
-    elapsed = time.time() - t0
     content = resp.choices[0].message.content or ""
-    print(f"  [LLM] Response received in {elapsed:.2f}s ({len(content)} chars)", flush=True)
-    return parse_json(content)
+    print(f"  [LLM] Response received in {time.time() - t0:.2f}s ({len(content)} chars)", flush=True)
+    out = parse_json(content)
+    if settings.llm_cache:
+        CACHE_DIR.mkdir(exist_ok=True)
+        cache_file.write_text(json.dumps(out, ensure_ascii=False))
+    return out
 
 
 def parse_json(text: str) -> dict:
