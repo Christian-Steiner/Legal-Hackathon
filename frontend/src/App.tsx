@@ -9,13 +9,13 @@ import Updates from "./pages/Updates";
 import AuditLog from "./pages/AuditLog";
 import Onboarding from "./pages/Onboarding";
 import Inbox from "./pages/Inbox";
+import AlertDetail from "./pages/AlertDetail";
 import Limitations from "./pages/Limitations";
 
 export default function App() {
   const s = useSession();
   const nav = useNavigate();
   const companies = useAsync(api.companies, [s.role, s.companyId]);
-  const meta = useAsync(api.meta);
 
   const switchTo = (value: string) => {
     if (value === "lawyer") {
@@ -35,11 +35,6 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <strong>LEXR</strong> Regulatory Change Monitor
-          {meta.data && (
-            <span className="muted small">
-              {" "}· {meta.data.demo_mode ? "demo mode (cached Fedlex)" : "live Fedlex"} · model {meta.data.llm_model}
-            </span>
-          )}
         </div>
         <nav>
           {s.role === "lawyer" ? (
@@ -83,6 +78,7 @@ export default function App() {
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/client/profile" element={<Onboarding edit />} />
           <Route path="/client/inbox" element={<Inbox />} />
+          <Route path="/client/inbox/:id" element={<AlertDetail />} />
           {/* <Route path="/limitations" element={<Limitations />} /> */}
           <Route path="*" element={<p>Not found</p>} />
         </Routes>
