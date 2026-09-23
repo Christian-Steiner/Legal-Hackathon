@@ -1,7 +1,7 @@
 """Versioned prompts (workstream 2). Bump the *_VERSION whenever a prompt changes -
 the version is stored on every Match/Draft and shown to the reviewer."""
 
-CLASSIFY_VERSION = "classify-v1"
+CLASSIFY_VERSION = "classify-v2"
 MATCH_VERSION = "match-v1"
 DRAFT_VERSION = "draft-v1"
 
@@ -19,7 +19,14 @@ CLASSIFY_USER = """Regulatory update:
 {update}
 
 Allowed functional_teams: {teams}
-Allowed triggered_flags (activity types this update concerns): {flags}
+Allowed triggered_flags - the kinds of COMPANY this update imposes obligations on (key: meaning):
+{flags}
+Notes on flags:
+- finma_supervised: banks, insurers, fintechs, payment providers and other financial intermediaries
+  (including everyone subject to the Anti-Money Laundering Act, GwG).
+- public_sector_clients: companies that SELL to public bodies. Do NOT use it just because the text
+  mentions authorities or public offices.
+- Only choose a flag if companies with that activity must check or change something.
 
 Return JSON:
 {{"topics": [short topic tags, English],

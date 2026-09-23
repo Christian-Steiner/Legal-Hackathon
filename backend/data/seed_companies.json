@@ -30,7 +30,7 @@
     "legal_context": "FINMA-supervised (fintech licence). Financial intermediary under the Anti-Money Laundering Act (GwG/AMLA). Must identify beneficial owners of corporate clients. Uses ML models for transaction monitoring.",
     "key_challenges": "Upcoming AML revisions and the new beneficial-ownership transparency register; explaining ML-based fraud decisions to clients; employee call recording.",
     "topics": ["financial market regulation", "anti-money laundering", "data protection", "tax", "corporate transparency"],
-    "preferred_language": "FR",
+    "preferred_language": "DE",
     "departments": [
       {"name": "Compliance & AML", "contact_email": "compliance@helvetiapay.example", "functions": ["Compliance", "Legal"], "responsibilities": "KYC, AML, FINMA reporting"},
       {"name": "Risk & Data", "contact_email": "risk@helvetiapay.example", "functions": ["Data", "Security", "Engineering"], "responsibilities": "Fraud models, data governance"},

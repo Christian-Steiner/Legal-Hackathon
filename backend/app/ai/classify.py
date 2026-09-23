@@ -7,7 +7,7 @@ from app.ai import llm, prompts, rules
 from app.schemas import ACTIVITY_FLAGS, FUNCTIONAL_TEAMS
 
 
-def update_for_prompt(update: dict, max_text: int = 4000) -> str:
+def update_for_prompt(update: dict, max_text: int = 2000) -> str:
     keep = ["title", "update_type", "jurisdiction", "eli_uri", "publication_date",
             "entry_into_force_date", "consultation_deadline", "source_language", "metadata_extra"]
     d = {k: update.get(k) for k in keep if update.get(k)}
@@ -23,7 +23,9 @@ def classify(update: dict) -> dict:
     else:
         raw = llm.complete_json(
             prompts.CLASSIFY_SYSTEM,
-            prompts.CLASSIFY_USER.format(update=update_for_prompt(update), teams=FUNCTIONAL_TEAMS, flags=list(ACTIVITY_FLAGS)),
+            prompts.CLASSIFY_USER.format(update=update_for_prompt(update), teams=FUNCTIONAL_TEAMS,
+                                         flags="\n".join(f"- {k}: {v}" for k, v in ACTIVITY_FLAGS.items())),
+            max_tokens=400,
         )
         out = {
             "topics": raw.get("topics", []),

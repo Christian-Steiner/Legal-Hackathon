@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     # or "openai". Apertus and OpenAI both go through the OpenAI-compatible client.
     llm_provider: str = "mock"
     llm_temperature: float = 0.1
+    # Parallel LLM calls in the pipeline (Apertus allows 5 req/s; each call takes several seconds).
+    llm_concurrency: int = 6
+    # Hard cap on requests per second across all threads (Apertus limit: 5 req/s -> stay below).
+    llm_max_rps: float = 3.0
+    # Reuse earlier answers for identical prompts (data/llm_cache/). Makes repeated resets ~instant.
+    llm_cache: bool = True
 
     apertus_api_key: str = ""
     apertus_base_url: str = "https://api.swisscom.com/products/swiss-ai-weeks/apertus-1.5-70b/v1"

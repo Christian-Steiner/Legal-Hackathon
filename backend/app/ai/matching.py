@@ -38,9 +38,9 @@ def match(company: dict, update: dict) -> dict:
 
     raw = llm.complete_json(
         prompts.MATCH_SYSTEM,
-        prompts.MATCH_USER.format(company=company_for_prompt(company), update=update_for_prompt(update),
+        prompts.MATCH_USER.format(company=company_for_prompt(company), update=update_for_prompt(update, max_text=1200),
                                   rule_hits=json.dumps(hits, ensure_ascii=False)),
-        max_tokens=400,
+        max_tokens=250,
     )
     return {**base, "matched": bool(raw.get("relevant")), "relevance_score": float(raw.get("relevance_score", rule_score)),
             "llm_reason": raw.get("reason", "(model gave no reason)"), "model_version": llm.model_version()}

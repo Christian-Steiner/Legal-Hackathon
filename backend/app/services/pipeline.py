@@ -1,5 +1,6 @@
 """Orchestration: ingest -> classify -> match -> draft. Owns DB writes + audit entries.
 The AI functions it calls (app/ai/*) are pure and DB-free."""
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -76,10 +77,21 @@ def upsert_items(db: Session, items: list[dict], actor: str = "system") -> schem
     return res
 
 
+# Demo selection (keeps LLM calls low): real Fedlex items that fit the demo companies.
+# Only applied to the cached snapshot; "Ingest live" still loads everything from Fedlex.
+DEMO_FEDLEX_IDS = {
+    "oc/2026/322",  # Anti-Money Laundering Act (GwG), in force 1 Oct 2026 -> Helvetia Pay
+    "oc/2026/323",  # Transparency of legal entities act (beneficial owners), in force 1 Oct 2026 -> most companies
+    "oc/2026/440",  # fedpol data standard for reports to the money-laundering office -> Helvetia Pay
+}
+DEMO_DATASET_IDS = {"R001", "R002"}  # high-risk AI guidance, customer analytics guidance -> Nimbus AI
+
+
 def ingest_fedlex(db: Session, live: bool | None = None) -> schemas.PipelineResult:
     live = (not settings.demo_mode) if live is None else live
     items = fedlex.fetch_live() if live else fedlex.load_cache()
-    items = items[:2] #limit number of regulatory changes for demo version
+    if not live:
+        items = [it for it in items if it["external_id"] in DEMO_FEDLEX_IDS]
     res = upsert_items(db, items)
     res.step = "ingest_fedlex"
     res.info = {"mode": "live" if live else "cache", "items": len(items)}
@@ -87,9 +99,23 @@ def ingest_fedlex(db: Session, live: bool | None = None) -> schemas.PipelineResu
 
 
 def ingest_dataset(db: Session) -> schemas.PipelineResult:
-    res = upsert_items(db, dataset.load_items()[:2])
+    res = upsert_items(db, [it for it in dataset.load_items() if it["external_id"] in DEMO_DATASET_IDS])
     res.step = "ingest_dataset"
     return res
+
+
+def _pmap(fn, items: list) -> list:
+    """Run the (pure, DB-free) AI function over items in parallel. Returns results or the exception
+    per item, in order. DB writes stay on the calling thread."""
+    def safe(x):
+        try:
+            return fn(*x) if isinstance(x, tuple) else fn(x)
+        except LLMError as e:
+            return e
+    if not items:
+        return []
+    with ThreadPoolExecutor(max_workers=max(1, settings.llm_concurrency)) as pool:
+        return list(pool.map(safe, items))
 
 
 def _update_dict(u: RegulatoryUpdate) -> dict:
@@ -102,39 +128,45 @@ def _company_dict(c: Company) -> dict:
 
 def classify_all(db: Session, force: bool = False) -> schemas.PipelineResult:
     res = schemas.PipelineResult(step="classify")
-    updates = list(db.scalars(select(RegulatoryUpdate)))
-    print(f"\n[Classify] Starting classification for {len(updates)} updates...", flush=True)
-    for i, u in enumerate(updates, 1):
+    todo = []
+    for u in db.scalars(select(RegulatoryUpdate)):
         if u.classification and not force:
             res.skipped += 1
+        else:
+            todo.append(u)
+    print(f"\n[Classify] Classifying {len(todo)} updates ({res.skipped} already done)...", flush=True)
+    outs = _pmap(ai_classify.classify, [_update_dict(u) for u in todo])
+    for u, out in zip(todo, outs):
+        if isinstance(out, Exception):
+            print(f"  [ERROR] Classify failed for {u.id}: {out}", flush=True)
+            res.errors.append(f"{u.id}: {out}")
             continue
-        print(f"[{i}/{len(updates)}] Classifying '{u.title[:60]}' ({u.id})...", flush=True)
-        try:
-            _classify_one(db, u)
-        except LLMError as e:
-            print(f"  [ERROR] Classify failed for {u.id}: {e}", flush=True)
-            res.errors.append(f"{u.id}: {e}")
-            continue
+        _classify_one(db, u, out)
         res.created += 1
-        db.commit()
+    db.commit()
     print(f"[Classify] Done: {res.created} created, {res.skipped} skipped, {len(res.errors)} errors.", flush=True)
     return res
 
 
-def _classify_one(db: Session, u: RegulatoryUpdate) -> None:
-    """Raises LLMError."""
-    u.classification = ai_classify.classify(_update_dict(u))
+def _classify_one(db: Session, u: RegulatoryUpdate, out: dict | None = None) -> None:
+    """Store a classification (computed here if not given). Raises LLMError."""
+    u.classification = out if out is not None else ai_classify.classify(_update_dict(u))
     audit.log(db, actor=f"model:{u.classification['model_version']}", action="classify", object_type="update",
               object_id=u.id, details=u.classification)
 
 
-def _match_one(db: Session, u: RegulatoryUpdate, ud: dict, c: Company, existing: Match | None) -> Match | None:
+def _approved(db: Session, m: Match | None) -> bool:
+    d = m and db.scalar(select(Draft).where(Draft.match_id == m.id))
+    return bool(d and d.status == "approved")
+
+
+def _match_one(db: Session, u: RegulatoryUpdate, ud: dict, c: Company, existing: Match | None,
+               out: dict | None = None) -> Match | None:
     """(Re-)match one update to one company. Returns None if skipped. Raises LLMError."""
-    if existing:
-        old_draft = db.scalar(select(Draft).where(Draft.match_id == existing.id))
-        if old_draft and old_draft.status == "approved":
-            return None  # never silently change something a lawyer already approved
-    out = ai_matching.match(_company_dict(c), ud)
+    if _approved(db, existing):
+        return None  # never silently change something a lawyer already approved
+    if out is None:
+        out = ai_matching.match(_company_dict(c), ud)
     if existing:
         old_draft = db.scalar(select(Draft).where(Draft.match_id == existing.id))
         if old_draft:
@@ -180,43 +212,42 @@ def process_update(db: Session, update_id: str, company_ids: list[int] | None = 
 def match_all(db: Session, force: bool = False) -> schemas.PipelineResult:
     res = schemas.PipelineResult(step="match")
     companies = list(db.scalars(select(Company)))
-    updates = list(db.scalars(select(RegulatoryUpdate).where(RegulatoryUpdate.classification.is_not(None))))
-    total_pairs = len(updates) * len(companies)
-    print(f"\n[Match] Matching {len(updates)} updates against {len(companies)} companies ({total_pairs} pairs)...", flush=True)
-    pair_idx = 0
-    for u in updates:
+    cds = {c.id: _company_dict(c) for c in companies}
+    todo = []  # (update, update_dict, company, existing match)
+    for u in db.scalars(select(RegulatoryUpdate).where(RegulatoryUpdate.classification.is_not(None))):
         ud = _update_dict(u)
         for c in companies:
-            pair_idx += 1
             existing = db.scalar(select(Match).where(Match.update_id == u.id, Match.company_id == c.id))
-            if existing and not force:
+            if (existing and not force) or _approved(db, existing):
                 res.skipped += 1
-                continue
-            print(f"[{pair_idx}/{total_pairs}] Matching '{c.name}' against '{u.title[:40]}'...", flush=True)
-            try:
-                m = _match_one(db, u, ud, c, existing)
-            except LLMError as e:
-                print(f"  [ERROR] Match failed for {u.id}/{c.id}: {e}", flush=True)
-                res.errors.append(f"{u.id}/{c.id}: {e}")
-                continue
-            if m is None:
-                res.skipped += 1
-                continue
-            res.created += 1
-            status_str = "MATCH" if m.matched else "NO MATCH"
-            print(f"  -> {status_str} (score: {m.relevance_score:.2f})", flush=True)
-        db.commit()
+            else:
+                todo.append((u, ud, c, existing))
+    print(f"\n[Match] Matching {len(todo)} update/company pairs ({res.skipped} skipped)...", flush=True)
+    outs = _pmap(ai_matching.match, [(cds[c.id], ud) for u, ud, c, _ in todo])
+    for (u, ud, c, existing), out in zip(todo, outs):
+        if isinstance(out, Exception):
+            print(f"  [ERROR] Match failed for {u.id}/{c.id}: {out}", flush=True)
+            res.errors.append(f"{u.id}/{c.id}: {out}")
+            continue
+        m = _match_one(db, u, ud, c, existing, out)
+        res.created += 1
+        print(f"  {'MATCH   ' if m.matched else 'NO MATCH'} ({m.relevance_score:.2f}) {c.name} <- {u.title[:50]}", flush=True)
+    db.commit()
     matched_count = db.query(Match).filter(Match.matched.is_(True)).count()
     res.info = {"matched": matched_count}
     print(f"[Match] Done: {res.created} evaluated, {matched_count} matches found.", flush=True)
     return res
 
 
-def draft_for_match(db: Session, m: Match, revision_comment: str | None = None, actor_note: str = "generated") -> Draft:
+def _draft_inputs(m: Match) -> tuple:
+    return (_company_dict(m.company), _update_dict(m.update), schemas.MatchOut.model_validate(m).model_dump(mode="json"))
+
+
+def draft_for_match(db: Session, m: Match, revision_comment: str | None = None, actor_note: str = "generated",
+                    out: dict | None = None) -> Draft:
     """Create (or regenerate) the draft for a match. Raises LLMError."""
-    print(f"  [Drafting] Match {m.id}: {m.company.name} / {m.update.title[:50]}...", flush=True)
-    out = ai_drafting.draft(_company_dict(m.company), _update_dict(m.update),
-                            schemas.MatchOut.model_validate(m).model_dump(mode="json"), revision_comment)
+    if out is None:
+        out = ai_drafting.draft(*_draft_inputs(m), revision_comment)
     now = datetime.now(timezone.utc)
     d = db.scalar(select(Draft).where(Draft.match_id == m.id))
     editable = {k: out[k] for k in ("summary", "affected_departments", "next_steps", "urgency", "citations")}
@@ -242,21 +273,22 @@ def draft_for_match(db: Session, m: Match, revision_comment: str | None = None, 
 
 def draft_all(db: Session) -> schemas.PipelineResult:
     res = schemas.PipelineResult(step="draft")
-    matches = list(db.scalars(select(Match).where(Match.matched.is_(True))))
-    print(f"\n[Draft] Generating drafts for {len(matches)} matches...", flush=True)
-    for i, m in enumerate(matches, 1):
+    todo = []
+    for m in db.scalars(select(Match).where(Match.matched.is_(True))):
         if db.scalar(select(Draft).where(Draft.match_id == m.id)):
             res.skipped += 1
+        else:
+            todo.append(m)
+    print(f"\n[Draft] Generating {len(todo)} drafts ({res.skipped} already exist)...", flush=True)
+    outs = _pmap(ai_drafting.draft, [_draft_inputs(m) for m in todo])
+    for m, out in zip(todo, outs):
+        if isinstance(out, Exception):
+            print(f"  [ERROR] Draft failed for match {m.id}: {out}", flush=True)
+            res.errors.append(f"match {m.id}: {out}")
             continue
-        print(f"[{i}/{len(matches)}] Drafting for match {m.id}...", flush=True)
-        try:
-            draft_for_match(db, m)
-            res.created += 1
-            db.commit()
-        except LLMError as e:
-            db.rollback()
-            print(f"  [ERROR] Draft failed for match {m.id}: {e}", flush=True)
-            res.errors.append(f"match {m.id}: {e}")
+        draft_for_match(db, m, out=out)
+        res.created += 1
+    db.commit()
     print(f"[Draft] Done: {res.created} drafts created, {res.skipped} skipped, {len(res.errors)} errors.", flush=True)
     return res
 
